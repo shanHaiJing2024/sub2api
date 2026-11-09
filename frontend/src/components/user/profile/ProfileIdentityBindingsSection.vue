@@ -88,7 +88,7 @@
               </div>
 
               <div
-                v-if="item.provider === 'email' && showEmailForm"
+                v-if="item.provider === 'email' && showEmailForm && !feishuManagedEmail"
                 data-testid="profile-binding-email-form"
                 class="grid gap-2 sm:grid-cols-[minmax(0,1.4fr)_auto]"
               >
@@ -153,7 +153,7 @@
 
           <div class="flex shrink-0 flex-wrap items-center gap-3">
             <button
-              v-if="item.provider === 'email' && compact"
+              v-if="item.provider === 'email' && compact && !feishuManagedEmail"
               data-testid="profile-binding-email-toggle"
               type="button"
               class="btn btn-secondary btn-sm"
@@ -299,6 +299,10 @@ const rowClass = computed(() =>
     : 'px-6 py-5'
 )
 const emailBound = computed(() => getBindingStatus('email'))
+const feishuManagedEmail = computed(() =>
+  ['飞书', 'feishu'].includes(props.oidcProviderName.trim().toLowerCase()) &&
+  getBindingStatus('oidc') && emailBound.value
+)
 const showEmailForm = computed(() => !compact.value || isEmailFormExpanded.value)
 const emailPasswordPlaceholder = computed(() =>
   emailBound.value
@@ -493,7 +497,7 @@ function providerInitial(provider: UserAuthProvider): string {
     return 'W'
   }
   if (provider === 'oidc') {
-    return 'O'
+    return ['飞书', 'feishu'].includes(props.oidcProviderName.trim().toLowerCase()) ? '飞' : 'O'
   }
   return 'E'
 }

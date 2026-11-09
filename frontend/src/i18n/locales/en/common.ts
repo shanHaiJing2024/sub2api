@@ -350,6 +350,7 @@ export default {
       signIn: 'Continue with {providerName}'
     },
     oidc: {
+      feishuEmailPolicy: 'Feishu sign-in matches your enterprise email first, then your personal email. Accounts with the same email are linked or merged automatically; a new account is created when no match exists. Existing passwords and data are preserved.',
       signIn: 'Continue with {providerName}',
       callbackTitle: 'Signing you in with {providerName}',
       callbackProcessing: 'Completing login with {providerName}, please wait...',

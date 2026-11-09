@@ -869,7 +869,7 @@ func (s *SettingService) GetOIDCConnectOAuthConfig(ctx context.Context) (config.
 	if strings.TrimSpace(effective.FrontendRedirectURL) == "" {
 		return config.OIDCConnectConfig{}, infraerrors.InternalServer("OAUTH_CONFIG_INVALID", "oauth frontend redirect url not configured")
 	}
-	if !scopesContainOpenID(effective.Scopes) {
+	if !scopesContainOpenID(effective.Scopes) && !config.IsFeishuOAuthEndpoints(effective.AuthorizeURL, effective.TokenURL, effective.UserInfoURL) {
 		return config.OIDCConnectConfig{}, infraerrors.InternalServer("OAUTH_CONFIG_INVALID", "oauth scopes must contain openid")
 	}
 	if effective.ClockSkewSeconds < 0 || effective.ClockSkewSeconds > 600 {

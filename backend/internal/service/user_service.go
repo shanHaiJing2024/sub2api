@@ -450,7 +450,27 @@ func (s *UserService) UnbindUserAuthProviderWithResult(ctx context.Context, user
 		return nil, false, ErrIdentityUnbindLastMethod
 	}
 
-	if err := s.userRepo.UnbindUserAuthProvider(ctx, userID, provider); err != nil {
+	unbind := func(txCtx context.Context) error {
+		avatar, err := s.userRepo.GetUserAvatar(txCtx, userID)
+		if err != nil {
+			return fmt.Errorf("get user avatar before unbind: %w", err)
+		}
+		deleteProviderAvatar := shouldDeleteAvatarForUnboundProvider(provider, avatar, records)
+		if err := s.userRepo.UnbindUserAuthProvider(txCtx, userID, provider); err != nil {
+			return err
+		}
+		if deleteProviderAvatar {
+			if err := s.userRepo.DeleteUserAvatar(txCtx, userID); err != nil {
+				return fmt.Errorf("delete unbound provider avatar: %w", err)
+			}
+		}
+		return nil
+	}
+	if txRunner, ok := s.userRepo.(userProfileIdentityTxRunner); ok {
+		if err := txRunner.WithUserProfileIdentityTx(ctx, unbind); err != nil {
+			return nil, false, err
+		}
+	} else if err := unbind(ctx); err != nil {
 		return nil, false, err
 	}
 	if s.authCacheInvalidator != nil {
@@ -462,6 +482,31 @@ func (s *UserService) UnbindUserAuthProviderWithResult(ctx context.Context, user
 		return nil, false, err
 	}
 	return updatedUser, true, nil
+}
+
+func shouldDeleteAvatarForUnboundProvider(provider string, avatar *UserAvatar, records []UserAuthIdentityRecord) bool {
+	if avatar == nil || strings.TrimSpace(avatar.StorageProvider) != "remote_url" {
+		return false
+	}
+	avatarURL := strings.TrimSpace(avatar.URL)
+	if avatarURL == "" {
+		return false
+	}
+
+	ownedByUnboundProvider := false
+	for _, record := range records {
+		providerAvatarURL := strings.TrimSpace(firstStringIdentityValue(record.Metadata, "avatar_url", "suggested_avatar_url", "headimgurl"))
+		if providerAvatarURL == "" || providerAvatarURL != avatarURL {
+			continue
+		}
+		if normalizeUserIdentityProvider(record.ProviderType) == provider {
+			ownedByUnboundProvider = true
+			continue
+		}
+		// Keep the avatar when another bound provider still supplies the same value.
+		return false
+	}
+	return ownedByUnboundProvider
 }
 
 // UpdateProfile 更新用户资料
@@ -1149,6 +1194,21 @@ func (s *UserService) List(ctx context.Context, params pagination.PaginationPara
 	return users, pagination, nil
 }
 
+// InvalidateAccountMergeCaches refreshes keys and balances after ownership has
+// moved in a transaction. Querying the target also finds the source's moved keys.
+func (s *UserService) InvalidateAccountMergeCaches(ctx context.Context, sourceID, targetID int64) {
+	for _, userID := range []int64{sourceID, targetID} {
+		if s.authCacheInvalidator != nil {
+			s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
+		}
+		if s.billingCache != nil {
+			if err := s.billingCache.InvalidateUserBalance(ctx, userID); err != nil {
+				slog.Error("invalidate merged account balance cache failed", "user_id", userID, "error", err)
+			}
+		}
+	}
+}
+
 // UpdateBalance 更新用户余额（管理员功能）
 func (s *UserService) UpdateBalance(ctx context.Context, userID int64, amount float64) error {
 	if err := s.userRepo.UpdateBalance(ctx, userID, amount); err != nil {
@@ -1275,7 +1335,7 @@ func saveNotifyVerifyCode(ctx context.Context, cache EmailCache, email, code str
 
 // sendNotifyVerifyEmail builds and sends the verification email.
 func (s *UserService) sendNotifyVerifyEmail(ctx context.Context, emailService *EmailService, userID int64, email, code, locale string) error {
-	siteName := "Sub2API"
+	siteName := "QAIPool"
 	if s.settingRepo != nil {
 		if name, err := s.settingRepo.GetValue(ctx, SettingKeySiteName); err == nil && name != "" {
 			siteName = name

@@ -1968,6 +1968,19 @@ func (h *AuthHandler) ExchangePendingOAuthCompletion(c *gin.Context) {
 			return
 		}
 	}
+	if canIssueTokenPair && pendingSessionStringValue(session.UpstreamIdentityClaims, "feishu_login") == "true" && loginUser.TotpEnabled && h.settingSvc.IsTotpEnabled(c.Request.Context()) {
+		if h.totpService == nil {
+			response.InternalError(c, "2FA service is unavailable")
+			return
+		}
+		tempToken, err := h.totpService.CreatePendingOAuthBindLoginSession(c.Request.Context(), loginUser.ID, loginUser.Email, session.SessionToken, session.BrowserSessionKey)
+		if err != nil {
+			response.InternalError(c, "Failed to create 2FA session")
+			return
+		}
+		response.Success(c, TotpLoginResponse{Requires2FA: true, TempToken: tempToken, UserEmailMasked: service.MaskEmail(loginUser.Email)})
+		return
+	}
 	skipAdoptionPrompt, err := h.shouldSkipPendingOAuthAdoptionPrompt(c.Request.Context(), session, payload)
 	if err != nil {
 		clearCookies()

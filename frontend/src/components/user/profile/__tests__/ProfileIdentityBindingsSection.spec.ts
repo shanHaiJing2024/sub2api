@@ -789,4 +789,27 @@ describe('ProfileIdentityBindingsSection', () => {
     expect(wrapper.find('[data-testid="profile-binding-linuxdo-action"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="profile-binding-oidc-action"]').exists()).toBe(false)
   })
+  it('hides manual email verification only for a bound Feishu email', () => {
+    const wrapper = mount(ProfileIdentityBindingsSection, {
+      global: { plugins: [pinia] },
+      props: {
+        user: createUser({ email_bound: true, auth_bindings: { email: { bound: true }, oidc: { bound: true } } }),
+        oidcProviderName: '飞书',
+      },
+    })
+    expect(wrapper.find('[data-testid="profile-binding-email-form"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="profile-binding-oidc-status"]').text()).toBe('Bound')
+  })
+
+  it('allows a Feishu identity without a real email to bind an email manually', () => {
+    const wrapper = mount(ProfileIdentityBindingsSection, {
+      global: { plugins: [pinia] },
+      props: {
+        user: createUser({ email_bound: false, auth_bindings: { email: { bound: false }, oidc: { bound: true } } }),
+        oidcProviderName: '飞书',
+      },
+    })
+    expect(wrapper.find('[data-testid="profile-binding-email-form"]').exists()).toBe(true)
+  })
+
 })

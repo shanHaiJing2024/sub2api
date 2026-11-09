@@ -349,6 +349,7 @@ export default {
       signIn: '使用 {providerName} 登录'
     },
     oidc: {
+      feishuEmailPolicy: '飞书首次登录优先匹配企业邮箱，其次匹配个人邮箱；同邮箱账号自动绑定或合并，无匹配时自动创建账号。已有账号的密码和数据保留。',
       signIn: '使用 {providerName} 登录',
       callbackTitle: '正在完成 {providerName} 登录',
       callbackProcessing: '正在验证 {providerName} 登录信息，请稍候...',

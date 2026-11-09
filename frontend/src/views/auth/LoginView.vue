@@ -185,6 +185,9 @@
             :show-divider="false"
             @start="handleOAuthStart"
           />
+          <p v-if="feishuEnabled" data-testid="feishu-email-account-policy" class="text-xs text-gray-500 dark:text-dark-400">
+            {{ t('auth.oidc.feishuEmailPolicy') }}
+          </p>
           <OidcOAuthSection
             v-if="oidcOAuthEnabled"
             :disabled="authActionDisabled"
@@ -350,6 +353,11 @@ const authActionDisabled = computed(
 
 const showPasskeyLogin = computed(
   () => passkeyEnabled.value && typeof window.PublicKeyCredential !== 'undefined'
+)
+
+const feishuEnabled = computed(() =>
+  !backendModeEnabled.value && oidcOAuthEnabled.value &&
+  ['飞书', 'feishu'].includes(oidcOAuthProviderName.value.trim().toLowerCase())
 )
 
 const showOAuthLogin = computed(

@@ -458,16 +458,16 @@ function normalizedPendingState(value: string | null | undefined): string {
   return value?.trim().toLowerCase() || ''
 }
 
+function displayableAccountEmail(value?: string): string {
+  const email = value?.trim() || ''
+  // Synthetic provider identities are internal keys, not user login addresses.
+  return email.toLowerCase().endsWith('.invalid') ? '' : email
+}
+
 function extractPendingAccountEmail(completion: PendingOidcCompletion): string {
-  return (
-    completion.pending_email ||
-    completion.existing_account_email ||
-    completion.compat_email ||
-    completion.resolved_email ||
-    completion.email ||
-    completion.suggested_email ||
-    ''
-  ).trim()
+  return [completion.pending_email, completion.existing_account_email, completion.compat_email,
+    completion.resolved_email, completion.email, completion.suggested_email]
+    .map(displayableAccountEmail).find(Boolean) || ''
 }
 
 function resolvePendingAccountAction(

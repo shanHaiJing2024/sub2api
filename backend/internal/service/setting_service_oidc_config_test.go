@@ -249,3 +249,24 @@ func TestGetOIDCConnectOAuthConfig_DefaultsCompatibilityFlagsToSafeValuesWhenSet
 	require.True(t, got.UsePKCE)
 	require.True(t, got.ValidateIDToken)
 }
+
+func TestGetOIDCConnectOAuthConfig_FeishuWithoutOpenID(t *testing.T) {
+	cfg := &config.Config{OIDC: config.OIDCConnectConfig{
+		Enabled: true, ProviderName: "飞书", ClientID: "feishu-client", ClientSecret: "secret",
+		IssuerURL: "https://accounts.feishu.cn", AuthorizeURL: "https://accounts.feishu.cn/open-apis/authen/v1/authorize",
+		TokenURL: "https://open.feishu.cn/open-apis/authen/v2/oauth/token", UserInfoURL: "https://open.feishu.cn/open-apis/authen/v1/user_info",
+		Scopes: "contact:user.base:readonly contact:user.email:readonly", RedirectURL: "https://example.com/api/v1/auth/oauth/oidc/callback",
+		FrontendRedirectURL: "/auth/oidc/callback", TokenAuthMethod: "client_secret_post",
+	}}
+	repo := &settingOIDCRepoStub{values: map[string]string{
+		SettingKeyOIDCConnectUsePKCE: "true", SettingKeyOIDCConnectValidateIDToken: "false",
+	}}
+	svc := NewSettingService(repo, cfg)
+	got, err := svc.GetOIDCConnectOAuthConfig(context.Background())
+	require.NoError(t, err)
+	require.True(t, got.UsePKCE)
+	require.False(t, got.ValidateIDToken)
+	cfg.OIDC.TokenURL = "https://other.example/token"
+	_, err = svc.GetOIDCConnectOAuthConfig(context.Background())
+	require.ErrorContains(t, err, "scopes")
+}

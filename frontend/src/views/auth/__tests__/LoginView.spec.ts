@@ -115,4 +115,22 @@ describe('LoginView registration entry', () => {
 
     expect(wrapper.text()).not.toContain('auth.signUp')
   })
+  it('explains enterprise email matching only for an enabled Feishu connection', async () => {
+    getPublicSettingsMock.mockResolvedValueOnce({
+      ...publicSettings, oidc_oauth_enabled: true, oidc_oauth_provider_name: '飞书'
+    })
+    const wrapper = mountLogin()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="feishu-email-account-policy"]').text()).toBe('auth.oidc.feishuEmailPolicy')
+    expect(wrapper.find('oidc-o-auth-section-stub').exists()).toBe(true)
+  })
+
+  it('keeps generic OIDC login without the Feishu email policy', async () => {
+    getPublicSettingsMock.mockResolvedValueOnce({ ...publicSettings, oidc_oauth_enabled: true })
+    const wrapper = mountLogin()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="feishu-email-account-policy"]').exists()).toBe(false)
+    expect(wrapper.find('oidc-o-auth-section-stub').exists()).toBe(true)
+  })
+
 })

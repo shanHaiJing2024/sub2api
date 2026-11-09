@@ -421,6 +421,10 @@ func (h *AuthHandler) OIDCOAuthCallback(c *gin.Context) {
 		return
 	}
 
+	if config.IsFeishuOAuthEndpoints(cfg.AuthorizeURL, cfg.TokenURL, cfg.UserInfoURL) {
+		h.continueFeishuOAuthLogin(c, frontendCallback, redirectTo, browserSessionKey, identityRef, username, upstreamClaims)
+		return
+	}
 	existingIdentityUser, err := h.findOAuthIdentityUser(c.Request.Context(), identityRef)
 	if err != nil {
 		redirectOAuthError(c, frontendCallback, "session_error", infraerrors.Reason(err), infraerrors.Message(err))
@@ -764,7 +768,17 @@ func oidcExchangeCode(
 		return nil, fmt.Errorf("unsupported token_auth_method: %s", cfg.TokenAuthMethod)
 	}
 
-	resp, err := r.SetFormDataFromValues(form).Post(cfg.TokenURL)
+	// Feishu's token endpoints accept JSON, unlike standard OIDC form requests.
+	if isFeishuUserInfoURL(cfg.UserInfoURL) {
+		payload := make(map[string]string, len(form))
+		for key := range form {
+			payload[key] = form.Get(key)
+		}
+		r.SetBody(payload)
+	} else {
+		r.SetFormDataFromValues(form)
+	}
+	resp, err := r.Post(cfg.TokenURL)
 	if err != nil {
 		return nil, fmt.Errorf("request token: %w", err)
 	}
@@ -779,7 +793,16 @@ func oidcExchangeCode(
 		}
 	}
 
-	tokenResp, ok := oidcParseTokenResponse(body)
+	tokenBody := body
+	if isFeishuUserInfoURL(cfg.UserInfoURL) {
+		if code := gjson.Get(body, "code"); code.Exists() && (code.Type != gjson.Number || code.Num != 0) {
+			return nil, &oidcTokenExchangeError{StatusCode: resp.StatusCode, Body: body}
+		}
+		if gjson.Get(body, "data.access_token").Exists() {
+			tokenBody = gjson.Get(body, "data").Raw
+		}
+	}
+	tokenResp, ok := oidcParseTokenResponse(tokenBody)
 	if !ok {
 		return nil, &oidcTokenExchangeError{StatusCode: resp.StatusCode, Body: body}
 	}
@@ -870,7 +893,7 @@ func oidcFetchUserInfo(
 		return nil, fmt.Errorf("userinfo status=%d", resp.StatusCode)
 	}
 
-	return oidcParseUserInfo(resp.String(), cfg), nil
+	return parseOIDCProviderUserInfo(resp.String(), cfg)
 }
 
 func oidcParseUserInfo(body string, cfg config.OIDCConnectConfig) *oidcUserInfoClaims {
@@ -1293,4 +1316,30 @@ func (h *AuthHandler) tryOIDCVerifiedEmailFastPath(
 	clearOAuthPendingBrowserCookie(c, isRequestHTTPS(c))
 	redirectWithFragment(c, frontendCallback, fragment)
 	return true
+}
+
+// adoptFeishuAvatarWhenMissing keeps an existing custom avatar, while making
+// the automatic email-link/signup path behave like the explicit adoption flow.
+// Avatar persistence is best-effort and must never turn an otherwise valid
+// enterprise login into an authentication failure.
+func (h *AuthHandler) adoptFeishuAvatarWhenMissing(ctx context.Context, userID int64, avatarURL string) {
+	avatarURL = strings.TrimSpace(avatarURL)
+	if h == nil || h.userService == nil || userID <= 0 || avatarURL == "" {
+		return
+	}
+	if err := service.ValidateUserAvatar(avatarURL); err != nil {
+		log.Printf("[OIDC OAuth] skipped invalid Feishu avatar: user_id=%d", userID)
+		return
+	}
+	user, err := h.userService.GetProfile(ctx, userID)
+	if err != nil {
+		log.Printf("[OIDC OAuth] failed to inspect Feishu avatar target: user_id=%d err=%v", userID, err)
+		return
+	}
+	if strings.TrimSpace(user.AvatarURL) != "" {
+		return
+	}
+	if _, err := h.userService.SetAvatar(ctx, userID, avatarURL); err != nil {
+		log.Printf("[OIDC OAuth] failed to persist Feishu avatar: user_id=%d err=%v", userID, err)
+	}
 }

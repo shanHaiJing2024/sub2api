@@ -3041,7 +3041,7 @@ func (c *Config) Validate() error {
 		if strings.TrimSpace(c.OIDC.FrontendRedirectURL) == "" {
 			return fmt.Errorf("oidc_connect.frontend_redirect_url is required when oidc_connect.enabled=true")
 		}
-		if !scopeContainsOpenID(c.OIDC.Scopes) {
+		if !scopeContainsOpenID(c.OIDC.Scopes) && !IsFeishuOAuthEndpoints(c.OIDC.AuthorizeURL, c.OIDC.TokenURL, c.OIDC.UserInfoURL) {
 			return fmt.Errorf("oidc_connect.scopes must contain openid")
 		}
 

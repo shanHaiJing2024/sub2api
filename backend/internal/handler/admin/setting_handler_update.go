@@ -1193,7 +1193,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			response.BadRequest(c, "OIDC Frontend Redirect URL is invalid")
 			return
 		}
-		if !scopesContainOpenID(req.OIDCConnectScopes) {
+		if !scopesContainOpenID(req.OIDCConnectScopes) && !config.IsFeishuOAuthEndpoints(req.OIDCConnectAuthorizeURL, req.OIDCConnectTokenURL, req.OIDCConnectUserInfoURL) {
 			response.BadRequest(c, "OIDC scopes must contain openid")
 			return
 		}

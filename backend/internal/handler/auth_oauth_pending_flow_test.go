@@ -3437,8 +3437,15 @@ func (r *oauthPendingFlowUserRepo) ListUserAuthIdentities(ctx context.Context, u
 	return records, nil
 }
 
-func (r *oauthPendingFlowUserRepo) UnbindUserAuthProvider(context.Context, int64, string) error {
-	panic("unexpected UnbindUserAuthProvider call")
+func (r *oauthPendingFlowUserRepo) UnbindUserAuthProvider(ctx context.Context, userID int64, provider string) error {
+	client := r.client
+	if tx := dbent.TxFromContext(ctx); tx != nil {
+		client = tx.Client()
+	}
+	_, err := client.AuthIdentity.Delete().
+		Where(authidentity.UserIDEQ(userID), authidentity.ProviderTypeEQ(provider)).
+		Exec(ctx)
+	return err
 }
 
 func (r *oauthPendingFlowUserRepo) UpdateTotpSecret(ctx context.Context, userID int64, encryptedSecret *string) error {

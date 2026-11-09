@@ -914,3 +914,10 @@ func TestGetProfile_HydratesAvatarFromRepository(t *testing.T) {
 	require.Equal(t, "https://cdn.example.com/profile.png", user.AvatarURL)
 	require.Equal(t, "remote_url", user.AvatarSource)
 }
+
+func TestInvalidateAccountMergeCachesRefreshesBothOwners(t *testing.T) {
+	invalidator := &mockAuthCacheInvalidator{}
+	svc := NewUserService(&mockUserRepo{}, nil, invalidator, nil)
+	svc.InvalidateAccountMergeCaches(context.Background(), 10, 20)
+	require.Equal(t, []int64{10, 20}, invalidator.invalidatedUserIDs)
+}
